@@ -9,6 +9,9 @@
 #ifndef global_hpp
 #define global_hpp
 
+#include <vector>
+#include <map>
+
 /**
  * Type definitions. Remember to create suitable graph shards using the
  * Sharder-program.
@@ -32,7 +35,7 @@ struct monitor_profile {
 
 typedef monitor_profile monitor_profile;
 
-monitor_profile monitored;
+//monitor_profile monitored;
 
 
 #endif /* global_hpp */
