@@ -1,5 +1,5 @@
-main: main.o vertex_relabel.o cpl_conn.o kernel_maps.o
-	g++ -o  main main.o vertex_relabel.o cpl_conn.o kernel_maps.o -lcpl -lcpl-odbc -lpthread -fopenmp -lz
+main: main.o vertex_relabel.o kernel_maps.o cpl_conn.o
+	g++ -o  main main.o vertex_relabel.o kernel_maps.o cpl_conn.o -lcpl -lcpl-odbc -lpthread -fopenmp -lz
 
 main.o: main.cpp
 	g++ -c -O3 -I/usr/local/include/ -I../src/ -Wall -Wno-strict-aliasing  main.cpp

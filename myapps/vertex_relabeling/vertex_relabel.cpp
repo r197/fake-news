@@ -1,35 +1,26 @@
-//
 //  vertex_relabel.cpp
 //  graphchi_xcode
 //
 //  Created by Michael Hahn on 3/2/17.
-//
-//
-#include <string>
-#include <iostream>
-#include <stdlib.h>
-#include <map>
-#include <thread>
-#include <cstdlib>
-#include <vector>
-#include <sstream>
-#include <cassert>
-#include "logger/logger.hpp"
+
 #include "vertex_relabel.hpp"
-#include "util/ioutil.hpp"
+
 
 void VertexRelabel::update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex, graphchi_context &gcontext) {
-    //swap phase in odd-numbered iterations
+    if (vertex.num_inedges() <= 0 && vertex.num_outedges() <= 0) {
+        logstream(LOG_INFO) << "Isolated vertex "<<  vertex.id() <<" detected" << std::endl;
+        return;
+    }
     if (gcontext.iteration % 2 == 1) {
-        for (int i = 0; i < vertex.num_inedges(); i++) {
-            graphchi_edge<EdgeDataType> *in_edge = vertex.inedge(i);
+        for(int i=0; i < vertex.num_inedges(); i++) {
+            graphchi_edge<EdgeDataType> * in_edge = vertex.inedge(i);
             type_label in_type = in_edge->get_data();
             in_type.old_dst = in_type.new_dst;
             in_edge->set_data(in_type);
             logstream(LOG_INFO) << "Swapped in edges of " << vertex.id() << " to " << in_type.old_dst << std::endl;
         }
-        for (int i = 0; i < vertex.num_outedges(); i++) {
-            graphchi_edge<EdgeDataType> *out_edge = vertex.outedge(i);
+        for (int i=0; i < vertex.num_outedges(); i++) {
+            graphchi_edge<EdgeDataType> * out_edge = vertex.outedge(i);
             type_label out_type = out_edge->get_data();
             out_type.old_src = out_type.new_src;
             out_edge->set_data(out_type);
@@ -43,12 +34,10 @@ void VertexRelabel::update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex
             // for each vertex, set its label as its w3c type
             std::string vertex_label = "";
             // The value can be obtained from any outedge (from src_type) or in_edge from (dst_type)
-            graphchi_edge<EdgeDataType> *outedge = vertex.random_outedge();
+            graphchi_edge<EdgeDataType> * outedge = vertex.random_outedge();
             //if the node has no outedge, we get a first inedge in the queue
             if (outedge == NULL) {
-                // TODO: this throws an error. Find out why
-                graphchi_edge<EdgeDataType> *inedge = vertex.inedge(0);
-
+                graphchi_edge<EdgeDataType> * inedge = vertex.inedge(0);
                 //get the dst_type from inedge
                 int vertex_int_label = inedge->get_data().new_dst;
                 std::string num_string;
@@ -69,7 +58,7 @@ void VertexRelabel::update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex
                 int label_map_label = km->insert_relabel(vertex_label);
                 relabel_map_lock.unlock();
                 label_map_lock.lock();
-                km->insert_label(label_map_label);
+                km->insert_label(vertex.id(), label_map_label);
                 label_map_lock.unlock();
                 vertex.set_data(label_map_label);
                 logstream(LOG_INFO) << "The value of label " << vertex.id() << " is: " << label_map_label << std::endl;
@@ -81,18 +70,18 @@ void VertexRelabel::update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex
             if (gcontext.iteration == 2) {
                 std::vector<std::pair<int, int>> incoming_pair_label_vec;
                 std::vector<std::pair<int, int>> outgoing_pair_label_vec;
-                for (int i = 0; i < vertex.num_inedges(); i++) {
-                    graphchi_edge<EdgeDataType> *in_edge = vertex.inedge(i);
+                for(int i=0; i < vertex.num_inedges(); i++) {
+                    graphchi_edge<EdgeDataType> * in_edge = vertex.inedge(i);
                     int int_in_type = in_edge->get_data().old_src;
                     int int_in_edge_type = in_edge->get_data().edge;
-                    std::pair<int, int> pair_label_in(int_in_type, int_in_edge_type);
+                    std::pair<int, int> pair_label_in (int_in_type, int_in_edge_type);
                     incoming_pair_label_vec.push_back(pair_label_in);
                 }
-                for (int i = 0; i < vertex.num_outedges(); i++) {
-                    graphchi_edge<EdgeDataType> *out_edge = vertex.outedge(i);
+                for (int i=0; i < vertex.num_outedges(); i++) {
+                    graphchi_edge<EdgeDataType> * out_edge = vertex.outedge(i);
                     int int_out_type = out_edge->get_data().old_dst;
                     int int_out_edge_type = out_edge->get_data().edge;
-                    std::pair<int, int> pair_label_out(int_out_type, int_out_edge_type);
+                    std::pair<int, int> pair_label_out (int_out_type, int_out_edge_type);
                     outgoing_pair_label_vec.push_back(pair_label_out);
                 }
                 struct {
@@ -112,8 +101,7 @@ void VertexRelabel::update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex
                 new_incoming_label += first_incoming_num_string;
                 new_incoming_label += ",";
 
-                for (std::vector<std::pair<int, int>>::iterator it = incoming_pair_label_vec.begin();
-                     it != incoming_pair_label_vec.end(); ++it) {
+                for (std::vector<std::pair<int, int>>::iterator it = incoming_pair_label_vec.begin(); it != incoming_pair_label_vec.end(); ++it) {
                     std::string incoming_num_string_first;
                     std::stringstream incoming_out_first;
                     incoming_out_first << it->first;
@@ -134,8 +122,7 @@ void VertexRelabel::update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex
                 new_outgoing_label += first_outgoing_num_string;
                 new_outgoing_label += ",";
 
-                for (std::vector<std::pair<int, int>>::iterator it = outgoing_pair_label_vec.begin();
-                     it != outgoing_pair_label_vec.end(); ++it) {
+                for (std::vector<std::pair<int, int>>::iterator it = outgoing_pair_label_vec.begin(); it != outgoing_pair_label_vec.end(); ++it) {
                     std::string outgoing_num_string_first;
                     std::stringstream outgoing_out_first;
                     outgoing_out_first << it->first;
@@ -171,27 +158,24 @@ void VertexRelabel::update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex
                 relabel_map_lock.unlock();
 
                 label_map_lock.lock();
-                km->insert_label(label_map_label_combined);
+                km->insert_label(vertex.id(), label_map_label_combined);
                 label_map_lock.unlock();
                 vertex.set_data(label_map_label_combined);
-                logstream(LOG_INFO) << "The value of label " << vertex.id() << " is: " << label_map_label_combined
-                                    << std::endl;
+                logstream(LOG_INFO) << "The value of label " << vertex.id() << " is: " << label_map_label_combined << std::endl;
             } else {//only takes incoming and outgoing vertex labels
                 std::vector<int> incoming_label_vec;
                 std::vector<int> outgoing_label_vec;
-                for (int i = 0; i < vertex.num_inedges(); i++) {
-                    graphchi_edge<EdgeDataType> *in_edge = vertex.inedge(i);
+                for(int i=0; i < vertex.num_inedges(); i++) {
+                    graphchi_edge<EdgeDataType> * in_edge = vertex.inedge(i);
                     int int_in_type = in_edge->get_data().old_src;
                     incoming_label_vec.push_back(int_in_type);
-                    logstream(LOG_INFO) << "Vertex " << vertex.id() << " getting " << int_in_type << " from in edges"
-                                        << std::endl;
+                    logstream(LOG_INFO) << "Vertex " << vertex.id() << " getting " << int_in_type << " from in edges" << std::endl;
                 }
-                for (int i = 0; i < vertex.num_outedges(); i++) {
-                    graphchi_edge<EdgeDataType> *out_edge = vertex.outedge(i);
+                for (int i=0; i < vertex.num_outedges(); i++) {
+                    graphchi_edge<EdgeDataType> * out_edge = vertex.outedge(i);
                     int int_out_type = out_edge->get_data().old_dst;
                     outgoing_label_vec.push_back(int_out_type);
-                    logstream(LOG_INFO) << "Vertex " << vertex.id() << " getting " << int_out_type << " from out edges"
-                                        << std::endl;
+                    logstream(LOG_INFO) << "Vertex " << vertex.id() << " getting " << int_out_type << " from out edges" << std::endl;
                 }
                 std::sort(incoming_label_vec.begin(), incoming_label_vec.end());
                 std::sort(outgoing_label_vec.begin(), outgoing_label_vec.end());
@@ -208,8 +192,7 @@ void VertexRelabel::update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex
                 new_incoming_label += first_incoming_num_string;
                 new_incoming_label += ",";
 
-                for (std::vector<int>::iterator it = incoming_label_vec.begin();
-                     it != incoming_label_vec.end() - 1; ++it) {
+                for (std::vector<int>::iterator it = incoming_label_vec.begin(); it != incoming_label_vec.end() - 1; ++it) {
                     std::string incoming_num_string;
                     std::stringstream incoming_out;
                     incoming_out << *it;
@@ -225,8 +208,7 @@ void VertexRelabel::update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex
                 new_outgoing_label += first_outgoing_num_string;
                 new_outgoing_label += ",";
 
-                for (std::vector<int>::iterator it = outgoing_label_vec.begin();
-                     it != outgoing_label_vec.end() - 1; ++it) {
+                for (std::vector<int>::iterator it = outgoing_label_vec.begin(); it != outgoing_label_vec.end() - 1; ++it) {
                     std::string outgoing_num_string;
                     std::stringstream outgoing_out;
                     outgoing_out << *it;
@@ -257,11 +239,10 @@ void VertexRelabel::update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex
                 relabel_map_lock.unlock();
 
                 label_map_lock.lock();
-                km->insert_label(label_map_label_combined);
+                km->insert_label(vertex.id(), label_map_label_combined);
                 label_map_lock.unlock();
                 vertex.set_data(label_map_label_combined);
-                logstream(LOG_INFO) << "The value of label " << vertex.id() << " is: " << label_map_label_combined
-                                    << std::endl;
+                logstream(LOG_INFO) << "The value of label " << vertex.id() << " is: " << label_map_label_combined << std::endl;
             }
         }
 
@@ -270,62 +251,34 @@ void VertexRelabel::update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex
         // write to the dst_type if the vertex is the destination vertex of the incident edge
         int label = vertex.get_data();
         if (gcontext.iteration == 0) {
-            for (int i = 0; i < vertex.num_inedges(); i++) {
-                graphchi_edge<EdgeDataType> *in_edge = vertex.inedge(i);
+            for(int i=0; i < vertex.num_inedges(); i++) {
+                graphchi_edge<EdgeDataType> * in_edge = vertex.inedge(i);
                 type_label in_type = in_edge->get_data();
                 in_type.new_dst = label;
                 in_edge->set_data(in_type);
             }
-            for (int i = 0; i < vertex.num_outedges(); i++) {
-                graphchi_edge<EdgeDataType> *out_edge = vertex.outedge(i);
+            for (int i=0; i < vertex.num_outedges(); i++) {
+                graphchi_edge<EdgeDataType> * out_edge = vertex.outedge(i);
                 type_label out_type = out_edge->get_data();
                 out_type.new_src = label;
                 out_edge->set_data(out_type);
             }
         } else {
-            for (int i = 0; i < vertex.num_inedges(); i++) {
-                graphchi_edge<EdgeDataType> *in_edge = vertex.inedge(i);
+            for(int i=0; i < vertex.num_inedges(); i++) {
+                graphchi_edge<EdgeDataType> * in_edge = vertex.inedge(i);
                 type_label in_type = in_edge->get_data();
                 in_type.new_dst = label;
                 in_edge->set_data(in_type);
                 logstream(LOG_INFO) << "Updated in edges of " << vertex.id() << " to " << in_type.old_dst << std::endl;
             }
-            for (int i = 0; i < vertex.num_outedges(); i++) {
-                graphchi_edge<EdgeDataType> *out_edge = vertex.outedge(i);
+            for (int i=0; i < vertex.num_outedges(); i++) {
+                graphchi_edge<EdgeDataType> * out_edge = vertex.outedge(i);
                 type_label out_type = out_edge->get_data();
                 out_type.new_src = label;
                 out_edge->set_data(out_type);
-                logstream(LOG_INFO) << "Updated out edges of " << vertex.id() << " to " << out_type.old_src
-                                    << std::endl;
+                logstream(LOG_INFO) << "Updated out edges of " << vertex.id() << " to " << out_type.old_src << std::endl;
             }
         }
-        /* Scheduler myself for next iteration */
-        //gcontext.scheduler->add_task(vertex.id());
     }
-}
-
-/**
- * Called before an iteration starts.
- */
-void VertexRelabel::before_iteration(int iteration, graphchi_context &gcontext) {
-}
-
-/**
- * Called after an iteration has finished.
- */
-//For debugging purpose:
-void VertexRelabel::after_iteration(int iteration, graphchi_context &gcontext) {
-}
-
-/**
- * Called before an execution interval is started.
- */
-void VertexRelabel::before_exec_interval(vid_t window_st, vid_t window_en, graphchi_context &gcontext) {
-}
-
-/**
- * Called after an execution interval has finished.
- */
-void VertexRelabel::after_exec_interval(vid_t window_st, vid_t window_en, graphchi_context &gcontext) {
 }
 

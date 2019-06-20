@@ -30,12 +30,10 @@ public:
 
     int insert_relabel(std::string label);
 
-    void insert_label(int label);
+    void insert_label(int vertex_id, int new_label);
 
-    std::vector<int> generate_count_array(std::map<int, int>& map);
-
-    std::vector<std::map<int, int>> get_label_maps () {
-        return this->label_maps;
+    std::map<int, int> get_label_map () {
+        return this->label_map;
     }
 
     std::map<std::string, int> get_relabel_map () {
@@ -44,21 +42,17 @@ public:
 
     void print_relabel_map();
 
-    void print_label_map(std::map<int, int>lmap);
+    void print_label_map();
 
 private:
 
     static KernelMaps* single_instance;
 
-    KernelMaps(int counter = 0) {
-        counter = this->counter;
-    }
-
     std::map<std::string, int> relabel_map;//a global relabel map
 
-    std::vector<std::map<int, int>> label_maps;//a vector that holds all label maps
+    std::map<int, int> label_map;//a global label map
 
-    int counter;//a counter to facilitate relabeling. This is also the size of the relabel map
+    int counter = 0;//a counter to facilitate relabeling. This is also the size of the relabel map
 };
 
 #endif /* kernel_maps_hpp */

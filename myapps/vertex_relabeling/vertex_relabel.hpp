@@ -1,9 +1,5 @@
 //
-//  vertex.hpp
-//  graphchi_xcode
-//
-//  Created by Michael Hahn on 3/2/17.
-//
+// Created by Rachel on 6/20/2019.
 //
 
 #ifndef vertex_hpp
@@ -12,9 +8,19 @@
 #include <mutex>
 #include "graphchi_basic_includes.hpp"
 #include "../kernel_maps/kernel_maps.hpp"
-#include "../global.hpp"
 
 using namespace graphchi;
+
+struct type_label {
+    int old_src;
+    int old_dst;
+    int new_src;
+    int new_dst;
+    int edge;
+};
+
+typedef int VertexDataType;
+typedef type_label EdgeDataType;
 
 struct VertexRelabel : public GraphChiProgram<VertexDataType, EdgeDataType> {
 
@@ -27,13 +33,6 @@ struct VertexRelabel : public GraphChiProgram<VertexDataType, EdgeDataType> {
 
     void update(graphchi_vertex<VertexDataType, EdgeDataType> &vertex, graphchi_context &gcontext);
 
-    void before_iteration(int iteration, graphchi_context &gcontext);
-
-    void after_iteration(int iteration, graphchi_context &gcontext);
-
-    void before_exec_interval(vid_t window_st, vid_t window_en, graphchi_context &gcontext);
-
-    void after_exec_interval(vid_t window_st, vid_t window_en, graphchi_context &gcontext);
 };
 
 #endif /* vertex_relabel_hpp */

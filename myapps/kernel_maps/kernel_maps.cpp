@@ -18,21 +18,17 @@ KernelMaps* KernelMaps::get_instance() {
 
 KernelMaps::~KernelMaps() {
     this->relabel_map.clear();
-    this->label_maps.clear();
+    this->label_map.clear();
     this->counter = 0;
     delete single_instance;
 }
 
 void KernelMaps::resetMaps() {
     this->relabel_map.clear();
-    this->label_maps.clear();
+    this->label_map.clear();
     this ->counter = 0;
 }
 
-void KernelMaps::insert_label_map() {
-    std::map<int, int> label_map;
-    this->label_maps.push_back(label_map);
-}
 
 //insert a label into the relabel map if it does not exist in the relabel map and then return the new relabeled label
 //if it does exist, return the existing relabeled label
@@ -48,33 +44,14 @@ int KernelMaps::insert_relabel(std::string label) {
     }
 }
 
-//insert int to label_map if it does not exist, or update the mapped value otherwise.
-//the label in the parameter is the mapped/relabeled label in the relabel map
-//always insert to the last map of the label_maps vector
-void KernelMaps::insert_label(int label) {
-    std::pair<std::map<int, int>::iterator, bool> rst;
-    rst = this->label_maps.back().insert(std::pair<int, int>(label, 1));
-    if (rst.second == false) {
-        logstream(LOG_INFO) << "Label is already in the map. Updating the value..." << std::endl;
-        rst.first->second++;
+void KernelMaps::insert_label(int vertex_id, int new_label) {
+    auto vertex_id_it = label_map.find(vertex_id);
+    if (vertex_id_it != label_map.end()) {
+        label_map[vertex_id] = new_label;
+    } else {
+        label_map.insert(std::pair<int, int>(vertex_id, new_label));
     }
     return;
-}
-
-std::vector<int> KernelMaps::generate_count_array(std::map<int, int>& map) {
-    std::vector<int> rtn;
-    std::map<int, int>::iterator itr = map.begin();
-    for (int i = 0; i < this->counter; i++) {
-        if (itr != map.end()) {
-            if (itr->first == i) {
-                rtn.push_back(itr->second);
-                itr++;
-            } else rtn.push_back(0);
-        } else {
-            rtn.push_back(0);
-        }
-    }
-    return rtn;
 }
 
 //The rest functions are for debugging purpose only
@@ -85,10 +62,10 @@ void KernelMaps::print_relabel_map () {
         logstream(LOG_INFO) << map_itr->first << ":" << map_itr->second << std::endl;
 }
 
-void KernelMaps::print_label_map (std::map<int, int>lmap) {
+void KernelMaps::print_label_map () {
     std::map<int, int>::iterator map_itr;
     logstream(LOG_INFO) << "Printing label map..." << std::endl;
-    for (map_itr = lmap.begin(); map_itr != lmap.end(); map_itr++)
+    for (map_itr = this->label_map.begin(); map_itr != this->label_map.end(); map_itr++)
         logstream(LOG_INFO) << map_itr->first << ":" << map_itr->second << std::endl;
 }
 
