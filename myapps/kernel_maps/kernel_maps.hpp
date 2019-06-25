@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <map>
+#include <set>
 #include <vector>
 #include "logger/logger.hpp"
 
@@ -32,6 +33,10 @@ public:
 
     void insert_label(int vertex_id, int new_label);
 
+    std::vector<int> generate_count_array(std::map<int, int>& map);
+
+    std::map<int, std::map<int, int>> getLabelCounts(std::map<int, std::set<int>> bundle_map);
+
     std::map<int, int> get_label_map () {
         return this->label_map;
     }
@@ -52,7 +57,7 @@ private:
 
     std::map<int, int> label_map;//a global label map
 
-    int counter = 0;//a counter to facilitate relabeling. This is also the size of the relabel map
+    int counter;//a counter to facilitate relabeling. This is also the size of the relabel map
 };
 
 #endif /* kernel_maps_hpp */

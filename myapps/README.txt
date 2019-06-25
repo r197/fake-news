@@ -1,6 +1,6 @@
 To compile and run from the myapps directory:
     make
-    ./main file GRAPH-NAME niters 10
+    ./main
 
 To clean:
     make clean

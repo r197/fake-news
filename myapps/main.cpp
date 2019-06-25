@@ -1,17 +1,28 @@
 //
-// Created by Rachel on 6/20/2019.
+//  main.cpp
+//  graphchi_xcode
+//
+//  Created by Michael Hahn on 3/2/17.
+//
 //
 
 #include <string>
 #include <fstream>
 #include "vertex_relabeling/vertex_relabel.hpp"
 #include "cpl/cpl_conn.hpp"
+#include "profile/profile.hpp"
+
+#define KULLBACKLEIBLER 0
+#define HELLINGER 1
+#define EUCLIDEAN 2
 
 const char* prefix = "test";
-std::map<int, std::set<int>> bundle_map;
 
-void fetch_data(std::string filename) {
+// Get all the objects for the cpl
+// TODO: modify so that user can specify what bundles they want (instead of all of them)
+std::map<int, std::set<int>> fetch_data(std::string filename) {
     std::ofstream outfile (filename);
+    std::map<int, std::set<int>> bundle_map;
 
     // Connect to the cpl
     connect_cpl();
@@ -20,12 +31,12 @@ void fetch_data(std::string filename) {
     auto *bundles = new std::vector<cplxx_object_info>();
     get_all_bundles(prefix, bundles);
 
-    std::map<int, std::string> object_types;
-    std::map<int, int> new_object_indices;
+    std::map<int, std::string> object_types; // Map of original object ID to object type
+    std::map<int, int> new_object_indices; //Map of original object ID to new object ID
     int curr_index = 0;
 
     for (const auto& bundle : *bundles) {
-        std::set<int> all_new_object_indices;
+        std::set<int> all_new_object_indices; // Keeps track of which objects are in this bundle
 
         cpl_id_t bundle_id = bundle.id;
 
@@ -46,28 +57,26 @@ void fetch_data(std::string filename) {
             int source_id = relation.query_object_id;
             int dest_id = relation.other_object_id;
 
+            // Find the types of the source and dest objects
             auto src_type_it = object_types.find(source_id);
             auto dest_type_it = object_types.find(dest_id);
 
             if (src_type_it != object_types.end() && dest_type_it != object_types.end()) {
-                auto src_index_it = new_object_indices.find(source_id);
-                int new_src_index = curr_index;
-                if (src_index_it != new_object_indices.end()) {
-                    new_src_index = src_index_it->second;
-                } else {
-                    new_object_indices.insert(std::pair<int,int>(source_id, curr_index));
+
+                // Find the new id for the source and dest objects
+                auto src_elem = new_object_indices.insert(std::pair<int,int>(source_id, curr_index));
+                if (src_elem.second) {
                     curr_index++;
                 }
+                int new_src_index = src_elem.first->second;
 
-                auto dest_index_it = new_object_indices.find(dest_id);
-                int new_dest_index = curr_index;
-                if (dest_index_it != new_object_indices.end()) {
-                    new_object_indices.insert(std::pair<int,int>(dest_id, curr_index));
-                    new_dest_index = dest_index_it->second;
-                } else {
+                auto dest_elem = new_object_indices.insert(std::pair<int,int>(dest_id, curr_index));
+                if (dest_elem.second) {
                     curr_index++;
                 }
+                int new_dest_index = dest_elem.first->second;
 
+                // Add objects to bundle objects set, and write edge to file
                 all_new_object_indices.insert(new_src_index);
                 all_new_object_indices.insert(new_dest_index);
                 std::string relation_str = src_type_it->second + ":" + dest_type_it->second + ":" + std::to_string(relation.type);
@@ -79,8 +88,10 @@ void fetch_data(std::string filename) {
         bundle_map.insert(std::pair<int,std::set<int>>(bundle.id, all_new_object_indices));
     }
     outfile.close();
+    return bundle_map;
 }
 
+// Parser used by graphchi preprocessing (taken from frappuccino)
 void parse(type_label &x, const char * s) {
     char * ss = (char *) s;
     char delims[] = ":";
@@ -90,7 +101,6 @@ void parse(type_label &x, const char * s) {
         logstream(LOG_FATAL) << "Source Type info does not exist" << std::endl;
     assert(t != NULL);
     x.new_src = atoi(t);
-    //TODO: We can make sure type value is never 0 so we can check if parse goes wrong here
     t = strtok(NULL, delims);
     if (t == NULL)
         logstream(LOG_FATAL) << "Destination Type info does not exist" << std::endl;
@@ -107,49 +117,6 @@ void parse(type_label &x, const char * s) {
     return;
 }
 
-void countBundleLabels() {
-    KernelMaps* km = KernelMaps::get_instance();
-
-    // Collect counts per bundle
-    std::map<int, int> label_map = km -> get_label_map();
-    std::map<int, std::map<int, int>> all_bundle_stats;
-
-    // Count labels for each bundle separately
-    for (auto bundle_it = bundle_map.begin(); bundle_it != bundle_map.end(); bundle_it++ ) {
-
-        // Count of labels for this specific bundle
-        std::map<int, int> label_count;
-        for (int initial_vertex_label : bundle_it->second) {
-            std::cout << initial_vertex_label << "\n";
-            // For each original vertex label in the bundle, find what the new label is
-            std::map<int,int>::iterator new_vertex_label_it = label_map.find(initial_vertex_label);
-
-            // Increment the counter for this new label
-            if (new_vertex_label_it != label_map.end()) {
-                std::map<int,int>::iterator it = label_count.find(new_vertex_label_it->second);
-                if (it != label_count.end()) {
-                    it->second++;
-                } else {
-                    label_count.insert(std::make_pair(new_vertex_label_it->second, 1));
-                }
-            } else {
-                std::cout << "MISSING: " << std::to_string(initial_vertex_label) << "\n";
-                throw std::runtime_error("Label map is missing entries");
-            }
-        }
-        all_bundle_stats.insert(std::pair<int,std::map<int, int>>(bundle_it->first, label_count));
-    }
-
-    std::cout << "Printing bundle label counts..." << std::endl;
-    for (auto map_itr = all_bundle_stats.begin(); map_itr != all_bundle_stats.end(); map_itr++){
-        std::cout << "\nBundle: " << std::to_string(map_itr->first) << "\n";
-
-        for(auto itr2 = map_itr->second.begin(); itr2 != map_itr->second.end(); itr2++) {
-            std::cout << std::to_string(itr2->first) << ", " << std::to_string(itr2->second) << "\n";
-        }
-    }
-}
-
 int main(int argc, const char ** argv) {
     // Create the single instance of KernelMap
     KernelMaps* km = KernelMaps::get_instance();
@@ -160,22 +127,124 @@ int main(int argc, const char ** argv) {
     global_logger().set_log_level(LOG_DEBUG);
 
     /* Parameters */
-    std::string filename    = get_option_string("file"); // Base filename
+    std::string filename    = get_option_string("file", "data"); // Base filename
     int niters              = get_option_int("niters", 4);
     bool scheduler          = false;                    // Non-dynamic version of pagerank.
 
-    fetch_data(filename);
+    std::map<int, std::set<int>> bundle_map = fetch_data(filename);
 
     /* Process input file - if not already preprocessed */
     int nshards             = convert_if_notexists<EdgeDataType>(filename, get_option_string("nshards", "auto"));
 
     /* Run */
     graphchi_engine<VertexDataType, EdgeDataType> engine(filename, nshards, scheduler, m);
-
     VertexRelabel program;
     engine.run(program, niters);
-
-    countBundleLabels();
     metrics_report(m);
+
+    // Find label counts for each bundle
+    std::map<int, std::map<int, int>> bundle_label_counts =  km->getLabelCounts(bundle_map);
+
+    // Vector of bundle ids, so we know what order our bundles are in
+    std::vector<int> bundle_ids;
+    int num_bundles = bundle_map.size();
+    bundle_ids.reserve(num_bundles);
+    for(auto const& elem: bundle_map)
+        bundle_ids.push_back(elem.first);
+
+    // Get all count arrays
+    std::vector<std::vector<int>> count_arrays;
+    bundle_ids.reserve(num_bundles);
+    for (auto bundle_id : bundle_ids) {
+        count_arrays.push_back(km->generate_count_array(bundle_label_counts.at(bundle_id)));
+    }
+
+
+    profile pf;
+
+    // Create the distance matrix
+    std::vector<double> distance_matrix;
+    for (int i = 0 ; i < num_bundles; i++) {
+        for (int j = 1; j < num_bundles - i; j++) {
+            double distance = pf.calculate_distance(KULLBACKLEIBLER, count_arrays[i], count_arrays[i+j]);
+            distance_matrix.push_back(distance);
+        }
+    }
+
+    // Determine initial centroid value to use
+    std::pair<std::vector<std::vector<int>>, std::vector<std::vector<double>>> cluster_prior_results = kmeans_prior(num_bundles, distance_matrix);
+    std::vector<std::vector<int>> cluster_prior = cluster_prior_results.first;
+
+    //obtain the value of k for later clustering of distributions
+    int total_number_of_valid_clusters_estimate = 0;
+    for (std::vector<std::vector<int>>::iterator itr = cluster_prior.begin(); itr != cluster_prior.end(); itr++) {
+        if (itr->size() > 0)
+            total_number_of_valid_clusters_estimate++;
+    }
+    std::cout << "# of Clusters (estimate): " << total_number_of_valid_clusters_estimate << std::endl;
+
+    //Initialize a vector that will hold the instance IDs of the ones that will be the initial centroild of the clustering of distributions
+    std::vector<int> cluster_ids;
+
+    //this vector contains for each cluster the instance that appears and the number of distance value of that instance
+    //e.g. if cluster 0 has 1-0 1-2 1-4, then we have [(1 -> 3, 2 -> 1, 4 -> 1), <other_maps>]
+    std::vector<std::map<int, int>> cluster_temps;
+
+    for (std::vector<std::vector<int>>::iterator itr = cluster_prior.begin(); itr != cluster_prior.end(); itr++) {
+        std::cout << "Prior Cluster: ";
+        std::map<int, int> temp;
+        for (std::vector<int>::iterator itr2 = itr->begin(); itr2 != itr->end(); itr2++) {
+            for (int x = 0; x < num_bundles - 1; x++) {
+                for (int y = 0; y < num_bundles - 1 - x; y++) {
+                    if ((((( (num_bundles - 1) + ( num_bundles - x )) * x ) / 2 ) + y ) == *itr2) {
+                        std::cout << x << "-" << x + 1 + y << " ";
+                        std::pair<std::map<int,int>::iterator,bool> ret;
+                        ret = temp.insert ( std::pair<int,int>(x,1) );
+                        if (!ret.second) {
+                            ret.first->second++;
+                        }
+                        ret = temp.insert ( std::pair<int,int>(x+1+y,1) );
+                        if (!ret.second) {
+                            ret.first->second++;
+                        }
+                    }
+                }
+            }
+        }
+        std::cout << std::endl;
+        cluster_temps.push_back(temp);
+    }
+
+    for (size_t i = 0; i < cluster_temps.size(); i++) {
+        if (cluster_temps[i].size() > 0) {
+            int id = -1;
+            int max_occur = -1;
+            for (std::map<int, int>::iterator it = cluster_temps[i].begin(); it != cluster_temps[i].end(); it++) {
+                if (it->second > max_occur) {
+                    max_occur = it->second;
+                    id = it->first;
+                }
+            }
+            assert (id >= 0);
+            assert (max_occur > 0);
+            cluster_ids.push_back(id);
+        }
+    }
+
+    std::vector<std::vector<int>> final_centroids;
+    std::pair<std::vector<std::vector<int>>, std::vector<std::vector<double>>> cluster_results = kmeans(total_number_of_valid_clusters_estimate, cluster_ids, count_arrays, final_centroids);
+
+    std::vector<std::vector<int>> cluster = cluster_results.first;
+    std::vector<std::vector<double>> cluster_distances = cluster_results.second;
+
+    // Print out elements in a cluster
+    for (std::vector<std::vector<int>>::iterator it = cluster.begin(); it != cluster.end(); it++) {
+        std::cout << "Cluster: ";
+        for (std::vector<int>::iterator itr2 = it->begin(); itr2 != it->end(); itr2++) {
+            std::cout << bundle_ids[*itr2] << " ";
+        }
+        std::cout << std::endl;
+    }
+
     return 0;
 }
