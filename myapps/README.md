@@ -1,9 +1,10 @@
 # Fake News Analysis
 
-Core provenance library (CPL): https://github.com/margoseltzer/prov-cpl
+Core provenance library (CPL): https://github.com/margoseltzer/prov-cpl  
 Article scraping: https://github.com/margoseltzer/article-scraping
+  
 
-Before running, please setup/install the CPL. 
+Before running, please setup/install the CPL.   
 The article scraping scripts can be used to extract data from articles and populate the CPL.
 
 **To compile and run vertex relabeling (from the myapps directory):**
