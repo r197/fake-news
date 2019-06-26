@@ -18,27 +18,17 @@
 
 const char* prefix = "test";
 
-// Get all the objects for the cpl
-// TODO: modify so that user can specify what bundles they want (instead of all of them)
-std::map<int, std::set<int>> fetch_data(std::string filename) {
+// Get all the bundle objects and relations from the cpl
+std::map<int, std::set<int>> fetch_data(std::string filename, std::vector<int> bundle_ids) {
     std::ofstream outfile (filename);
     std::map<int, std::set<int>> bundle_map;
-
-    // Connect to the cpl
-    connect_cpl();
-
-    // Get all the bundles in the database
-    auto *bundles = new std::vector<cplxx_object_info>();
-    get_all_bundles(prefix, bundles);
 
     std::map<int, std::string> object_types; // Map of original object ID to object type
     std::map<int, int> new_object_indices; //Map of original object ID to new object ID
     int curr_index = 0;
 
-    for (const auto& bundle : *bundles) {
+    for (const auto& bundle_id : bundle_ids) {
         std::set<int> all_new_object_indices; // Keeps track of which objects are in this bundle
-
-        cpl_id_t bundle_id = bundle.id;
 
         // Get the objects in the bundle
         auto *objects = new std::vector<cplxx_object_info>();
@@ -85,7 +75,7 @@ std::map<int, std::set<int>> fetch_data(std::string filename) {
                 throw std::runtime_error("Bundle objects and relations are inconsistent");
             }
         }
-        bundle_map.insert(std::pair<int,std::set<int>>(bundle.id, all_new_object_indices));
+        bundle_map.insert(std::pair<int,std::set<int>>(bundle_id, all_new_object_indices));
     }
     outfile.close();
     return bundle_map;
@@ -117,50 +107,10 @@ void parse(type_label &x, const char * s) {
     return;
 }
 
-int main(int argc, const char ** argv) {
-    // Create the single instance of KernelMap
-    KernelMaps* km = KernelMaps::get_instance();
-    km->resetMaps();
-
-    graphchi_init(argc, argv);
-    metrics m("Detection Framework");
-    global_logger().set_log_level(LOG_DEBUG);
-
-    /* Parameters */
-    std::string filename    = get_option_string("file", "data"); // Base filename
-    int niters              = get_option_int("niters", 4);
-    bool scheduler          = false;                    // Non-dynamic version of pagerank.
-
-    std::map<int, std::set<int>> bundle_map = fetch_data(filename);
-
-    /* Process input file - if not already preprocessed */
-    int nshards             = convert_if_notexists<EdgeDataType>(filename, get_option_string("nshards", "auto"));
-
-    /* Run */
-    graphchi_engine<VertexDataType, EdgeDataType> engine(filename, nshards, scheduler, m);
-    VertexRelabel program;
-    engine.run(program, niters);
-    metrics_report(m);
-
-    // Find label counts for each bundle
-    std::map<int, std::map<int, int>> bundle_label_counts =  km->getLabelCounts(bundle_map);
-
-    // Vector of bundle ids, so we know what order our bundles are in
-    std::vector<int> bundle_ids;
-    int num_bundles = bundle_map.size();
-    bundle_ids.reserve(num_bundles);
-    for(auto const& elem: bundle_map)
-        bundle_ids.push_back(elem.first);
-
-    // Get all count arrays
-    std::vector<std::vector<int>> count_arrays;
-    bundle_ids.reserve(num_bundles);
-    for (auto bundle_id : bundle_ids) {
-        count_arrays.push_back(km->generate_count_array(bundle_label_counts.at(bundle_id)));
-    }
-
-
+// Cluster the label counts for the bundles
+std::vector<std::vector<int>> clusterBundles(std::vector<std::vector<int>> count_arrays) {
     profile pf;
+    int num_bundles = count_arrays.size();
 
     // Create the distance matrix
     std::vector<double> distance_matrix;
@@ -233,9 +183,79 @@ int main(int argc, const char ** argv) {
 
     std::vector<std::vector<int>> final_centroids;
     std::pair<std::vector<std::vector<int>>, std::vector<std::vector<double>>> cluster_results = kmeans(total_number_of_valid_clusters_estimate, cluster_ids, count_arrays, final_centroids);
+    return cluster_results.first;
+}
 
-    std::vector<std::vector<int>> cluster = cluster_results.first;
-    std::vector<std::vector<double>> cluster_distances = cluster_results.second;
+// Get a count array for each bundle
+std::vector<std::vector<int>> getCountArrays(
+        std::map<int, std::map<int, int>> bundle_label_counts,
+        std::vector<int> bundle_ids) {
+    KernelMaps* km = KernelMaps::get_instance();
+
+    std::vector<std::vector<int>> count_arrays;
+    count_arrays.reserve(bundle_ids.size());
+    for (auto bundle_id : bundle_ids) {
+        count_arrays.push_back(km->generate_count_array(bundle_label_counts.at(bundle_id)));
+    }
+    return count_arrays;
+}
+
+int main(int argc, const char ** argv) {
+    // Create the single instance of KernelMap
+    KernelMaps* km = KernelMaps::get_instance();
+    km->resetMaps();
+
+    // Connect to the cpl
+    connect_cpl();
+
+    graphchi_init(argc, argv);
+    metrics m("Detection Framework");
+    global_logger().set_log_level(LOG_DEBUG);
+
+    // Parameters
+    std::string filename    = get_option_string("file", "data.txt"); // Base filename
+    int niters              = get_option_int("niters", 4);
+    std::string bundle_file = get_option_string("bundles", "");
+    bool scheduler          = false;                    // Non-dynamic version of pagerank.
+
+    // Read the bundle file to see which bundles we want to analyze
+    auto *bundles = new std::vector<cplxx_object_info>();
+    std::vector<int> bundle_ids;
+    if (bundle_file.empty()){
+        std::cout << "No bundle file specified. Analyzing all bundles" << std::end1;
+        get_all_bundles(prefix, bundles);
+        bundle_ids.reserve(bundles->size());
+        for (const auto bundle : *bundles) {
+            bundle_ids.push_back(bundle.id);
+        }
+    } else {
+        std::cout << "Extracting bundle IDs from the bundle file" << std::end1;
+        std::fstream f(bundle_file, std::ios_base::in);
+        int id;
+        while (f >> id) {
+            bundle_ids.push_back(id);
+        }
+    }
+
+    // Get the objects & relations for all the bundles
+    std::map<int, std::set<int>> bundle_map = fetch_data(filename, bundle_ids);
+
+    // Process input file - if not already preprocessed
+    int nshards = convert_if_notexists<EdgeDataType>(filename, get_option_string("nshards", "auto"));
+
+    // Run
+    graphchi_engine<VertexDataType, EdgeDataType> engine(filename, nshards, scheduler, m);
+    VertexRelabel program;
+    engine.run(program, niters);
+
+    // Find label counts for each bundle
+    std::map<int, std::map<int, int>> bundle_label_counts =  km->getLabelCounts(bundle_map);
+
+    // Get all count arrays
+    std::vector<std::vector<int>> count_arrays = getCountArrays(bundle_label_counts, bundle_ids);
+
+    // Cluster the count arrays
+    std::vector<std::vector<int>> cluster = clusterBundles(count_arrays);
 
     // Print out elements in a cluster
     for (std::vector<std::vector<int>>::iterator it = cluster.begin(); it != cluster.end(); it++) {
