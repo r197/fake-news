@@ -22,4 +22,6 @@ void get_bundle_objects(cpl_id_t bundle_id, std::vector<cplxx_object_info> *obje
 
 void get_bundle_relations(cpl_id_t bundle_id, std::vector<cpl_relation_t> *relations);
 
+std::string get_object_type(const char* prefix, cpl_id_t bundle_id, cpl_id_t object_id);
+
 #endif /* cpl_conn_hpp */

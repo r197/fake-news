@@ -35,7 +35,11 @@ std::map<int, std::set<int>> fetch_data(std::string filename, std::vector<int> b
         get_bundle_objects(bundle_id, objects);
 
         for (const auto& object : *objects) {
-            object_types.insert(std::pair<int,std::string>(object.id, std::to_string(object.type)));
+            auto it = object_types.find(object.id);
+            if (it == object_types.end()) {
+                std::string type = get_object_type(prefix, bundle_id, object.id);
+                object_types.insert(std::pair<int,std::string>(object.id, type));
+            }
         }
 
         // Get the relations
@@ -222,14 +226,14 @@ int main(int argc, const char ** argv) {
     auto *bundles = new std::vector<cplxx_object_info>();
     std::vector<int> bundle_ids;
     if (bundle_file.empty()){
-        std::cout << "No bundle file specified. Analyzing all bundles" << std::end1;
+        std::cout << "No bundle file specified. Analyzing all bundles" << std::endl;
         get_all_bundles(prefix, bundles);
         bundle_ids.reserve(bundles->size());
         for (const auto bundle : *bundles) {
             bundle_ids.push_back(bundle.id);
         }
     } else {
-        std::cout << "Extracting bundle IDs from the bundle file" << std::end1;
+        std::cout << "Extracting bundle IDs from the bundle file" << std::endl;
         std::fstream f(bundle_file, std::ios_base::in);
         int id;
         while (f >> id) {

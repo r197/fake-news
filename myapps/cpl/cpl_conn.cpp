@@ -44,3 +44,15 @@ void get_bundle_relations(cpl_id_t bundle, std::vector<cpl_relation_t> *relation
         throw CPLException("Could not get bundle relations for bundle %d. Error code: %d", bundle, ret);
     }
 }
+
+std::string get_object_type(const char* prefix, cpl_id_t bundle_id, cpl_id_t object_id) {
+    auto properties = new std::vector<cplxx_property_entry>();
+    cpl_return_t ret = cpl_get_object_properties(object_id, prefix, "type", cpl_cb_collect_properties_vector, properties);
+    if (ret != CPL_OK) {
+        throw CPLException("Could not get object properties for object %d. Error code: %d", object_id, ret);
+    }
+    if (properties->size() < 1) {
+        throw CPLException("Object with id %d had no type property", object_id);
+    }
+    return properties->at(0).value;
+}
