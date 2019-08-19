@@ -25,7 +25,7 @@ void connect_cpl() {
 }
 
 void get_all_bundles(const char* prefix, std::vector<cplxx_object_info> *bundles) {
-    cpl_return_t ret = cpl_get_all_objects(prefix, 0, cpl_cb_collect_object_info_vector, bundles);
+    cpl_return_t ret = cpl_get_all_objects(prefix, 0, CPL_BUNDLE, cpl_cb_collect_object_info_vector, bundles);
     if (ret != CPL_OK) {
         throw CPLException("Could not get all cpl objects. Error code: %d", ret);
     }
@@ -46,8 +46,8 @@ void get_bundle_relations(cpl_id_t bundle, std::vector<cpl_relation_t> *relation
 }
 
 std::string get_object_type(const char* prefix, cpl_id_t bundle_id, cpl_id_t object_id) {
-    auto properties = new std::vector<cplxx_property_entry>();
-    cpl_return_t ret = cpl_get_object_properties(object_id, prefix, "type", cpl_cb_collect_properties_vector, properties);
+    auto properties = new std::vector<cplxx_string_property_entry>();
+    cpl_return_t ret = cpl_get_object_string_properties(object_id, prefix, "type", cpl_cb_collect_properties_vector, properties);
     if (ret != CPL_OK) {
         throw CPLException("Could not get object properties for object %d. Error code: %d", object_id, ret);
     }
