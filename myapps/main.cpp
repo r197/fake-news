@@ -220,29 +220,36 @@ int main(int argc, const char ** argv) {
     std::string filename    = get_option_string("file", "data.txt"); // Base filename
     int niters              = get_option_int("niters", 4);
     std::string bundle_file = get_option_string("bundles", "");
+    std::string existing_file = get_option_string("data", "");
     bool scheduler          = false;                    // Non-dynamic version of pagerank.
 
-    // Read the bundle file to see which bundles we want to analyze
-    auto *bundles = new std::vector<cplxx_object_info>();
-    std::vector<int> bundle_ids;
-    if (bundle_file.empty()){
-        std::cout << "No bundle file specified. Analyzing all bundles" << std::endl;
-        get_all_bundles(prefix, bundles);
-        bundle_ids.reserve(bundles->size());
-        for (const auto bundle : *bundles) {
-            bundle_ids.push_back(bundle.id);
-        }
-    } else {
-        std::cout << "Extracting bundle IDs from the bundle file" << std::endl;
-        std::fstream f(bundle_file, std::ios_base::in);
-        int id;
-        while (f >> id) {
-            bundle_ids.push_back(id);
-        }
-    }
+    if (existing_file.empty()) {
 
-    // Get the objects & relations for all the bundles
-    std::map<int, std::set<int>> bundle_map = fetch_data(filename, bundle_ids);
+        // Read the bundle file to see which bundles we want to analyze
+        auto *bundles = new std::vector<cplxx_object_info>();
+        std::vector<int> bundle_ids;
+        if (bundle_file.empty()){
+            std::cout << "No bundle file specified. Analyzing all bundles" << std::endl;
+            get_all_bundles(prefix, bundles);
+            bundle_ids.reserve(bundles->size());
+            for (const auto bundle : *bundles) {
+                bundle_ids.push_back(bundle.id);
+            }
+        } else {
+            std::cout << "Extracting bundle IDs from the bundle file" << std::endl;
+            std::fstream f(bundle_file, std::ios_base::in);
+            int id;
+            while (f >> id) {
+                bundle_ids.push_back(id);
+            }
+        }
+
+        // Get the objects & relations for all the bundles
+        std::map<int, std::set<int>> bundle_map = fetch_data(filename, bundle_ids);
+    } else {
+        std::cout << "Data file was passed in. Analyzing data from the file" << std::endl;
+        filename = existing_file;
+    }
 
     // Process input file - if not already preprocessed
     int nshards = convert_if_notexists<EdgeDataType>(filename, get_option_string("nshards", "auto"));
