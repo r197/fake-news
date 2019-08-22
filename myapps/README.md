@@ -13,9 +13,14 @@ The article scraping scripts can be used to extract data from articles and popul
     ./main
 ```
 
-**To specify the file you want graph data to be written to (default file name is "data.txt"):**
+**To specify the file you want graph data to be written to (default is current directory):**
 ```
-    ./main file <graph name>
+    ./main outputDir <directory name>
+```
+
+**To run vertex relabeling with previously generated data files:**
+```
+    ./main existingDir <directory name>
 ```
 
 **To specify the number of iterations (default # iterations is 4):**

@@ -7,6 +7,7 @@
 //
 
 #include <string>
+#include <iostream>
 #include <fstream>
 #include "vertex_relabeling/vertex_relabel.hpp"
 #include "cpl/cpl_conn.hpp"
@@ -85,6 +86,57 @@ std::map<int, std::set<int>> fetch_data(std::string filename, std::vector<int> b
     return bundle_map;
 }
 
+void writeBundleIdFile(std::string fileName, std::vector<int> bundleIds) {
+    std::ofstream file;
+    file.open(fileName);
+    for (auto bundle: bundleIds) {
+        file << std::to_string(bundle) << "\n";
+    }
+    file.close();
+}
+
+void readBundleIdFile(std::string fileName, std::vector<int> &bundleIds) {
+    std::fstream f(fileName, std::ios_base::in);
+    int id;
+    while (f >> id) {
+        bundleIds.push_back(id);
+    }
+}
+
+void writeBundleMapFile(std::string fileName, std::map<int, std::set<int>> bundleMap) {
+    std::ofstream file;
+    file.open(fileName);
+    for (auto const& entry : bundleMap) {
+        file << std::to_string(entry.first) << ":";
+        std::string padding;
+        for (auto const e : entry.second) {
+            file << padding << std::to_string(e);
+            padding = ", ";
+        }
+        file << "\n";
+    }
+    file.close();
+}
+
+void readBundleMapFile(std::string fileName, std::map<int, std::set<int>> &bundleMap) {
+    std::ifstream file(fileName);
+    std::string line;
+    std::string token;
+    while (std::getline(file, line)) {
+        size_t pos = 0;
+        int index = line.find(':');
+        int first = stoi(line.substr(0, index));
+        std::set<int> second;
+        line.erase(0, index + 1);
+        while ((pos = line.find(',')) != std::string::npos) {
+            second.insert(stoi(line.substr(0, pos)));
+            line.erase(0, pos + 1);
+        }
+        if (!line.empty())
+            second.insert(stoi(line));
+        bundleMap.insert(std::pair<int,std::set<int>>(first, second));
+    }
+}
 // Parser used by graphchi preprocessing (taken from frappuccino)
 void parse(type_label &x, const char * s) {
     char * ss = (char *) s;
@@ -217,17 +269,20 @@ int main(int argc, const char ** argv) {
     global_logger().set_log_level(LOG_DEBUG);
 
     // Parameters
-    std::string filename    = get_option_string("file", "data.txt"); // Base filename
+    std::string data_directory    = get_option_string("outputDir", "."); // Base filename
     int niters              = get_option_int("niters", 4);
     std::string bundle_file = get_option_string("bundles", "");
-    std::string existing_file = get_option_string("data", "");
+    std::string existing_data_dir = get_option_string("existingDir", "");
     bool scheduler          = false;                    // Non-dynamic version of pagerank.
 
-    if (existing_file.empty()) {
+    std::vector<int> bundle_ids;
+    std::map<int, std::set<int>> bundle_map;
+    std::string filename;
+
+    if (existing_data_dir.empty()) {
 
         // Read the bundle file to see which bundles we want to analyze
         auto *bundles = new std::vector<cplxx_object_info>();
-        std::vector<int> bundle_ids;
         if (bundle_file.empty()){
             std::cout << "No bundle file specified. Analyzing all bundles" << std::endl;
             get_all_bundles(prefix, bundles);
@@ -244,11 +299,18 @@ int main(int argc, const char ** argv) {
             }
         }
 
+        filename = data_directory + "/edgeList";
+
         // Get the objects & relations for all the bundles
-        std::map<int, std::set<int>> bundle_map = fetch_data(filename, bundle_ids);
+        bundle_map = fetch_data(filename, bundle_ids);
+
+        writeBundleIdFile(data_directory + "/bundleIDs", bundle_ids);
+        writeBundleMapFile(data_directory + "/bundleMap", bundle_map);
     } else {
-        std::cout << "Data file was passed in. Analyzing data from the file" << std::endl;
-        filename = existing_file;
+        std::cout << "Data files were passed in. Analyzing the passed in data" << std::endl;
+        filename = existing_data_dir + "/edgeList";
+        readBundleIdFile(existing_data_dir + "/bundleIDs", bundle_ids);
+        readBundleMapFile(existing_data_dir + "/bundleMap", bundle_map);
     }
 
     // Process input file - if not already preprocessed
