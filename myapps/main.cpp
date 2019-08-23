@@ -137,6 +137,19 @@ void readBundleMapFile(std::string fileName, std::map<int, std::set<int>> &bundl
         bundleMap.insert(std::pair<int,std::set<int>>(first, second));
     }
 }
+
+void readBundleLabels(std::string fileName, std::map<int, int> &bundleLabels) {
+    std::ifstream file(fileName);
+    std::string line;
+    std::string token;
+    while (std::getline(file, line)) {
+        int first = stoi(line.substr(0, line.find(',')));
+        line.erase(0, line.find(',') + 1);
+        int second = stoi(line);
+        bundleLabels.insert(std::pair<int,int>(first, second));
+    }
+}
+
 // Parser used by graphchi preprocessing (taken from frappuccino)
 void parse(type_label &x, const char * s) {
     char * ss = (char *) s;
@@ -273,6 +286,7 @@ int main(int argc, const char ** argv) {
     int niters              = get_option_int("niters", 4);
     std::string bundle_file = get_option_string("bundles", "");
     std::string existing_data_dir = get_option_string("existingDir", "");
+    std::string bundle_label_file = get_option_string("bundleLabels", "");
     bool scheduler          = false;                    // Non-dynamic version of pagerank.
 
     std::vector<int> bundle_ids;
@@ -337,6 +351,26 @@ int main(int argc, const char ** argv) {
             std::cout << bundle_ids[*itr2] << " ";
         }
         std::cout << std::endl;
+    }
+
+    if (!bundle_label_file.empty()) {
+        std::cout << "\n" << "Printing cluster real/fake percentage \n";
+        std::map<int, int> bundleLabels;
+        readBundleLabels(bundle_label_file, bundleLabels);
+        for (std::vector<std::vector<int>>::iterator it = cluster.begin(); it != cluster.end(); it++) {
+            std::cout << "Cluster (Size: " << it->size() << "): ";
+            int count = 0;
+            for (std::vector<int>::iterator itr2 = it->begin(); itr2 != it->end(); itr2++) {
+                auto label = bundleLabels.find(bundle_ids[*itr2]);
+                if (label != bundleLabels.end()) {
+                    count += label->second;
+                } else {
+                    throw std::runtime_error("Bundle labels is missing a bundle");
+                }
+            }
+            int t = (count * 100) / it->size();
+            std::cout << t << "% real, " << 100-t << "% fake" << std::endl;
+        }
     }
 
     return 0;
